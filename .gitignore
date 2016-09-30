@@ -1,0 +1,7 @@
+/*/*.iml
+/*/.idea
+/*/target
+/*/project/target
+/client/public/app.js
+/client/public/app.js.map
+/client/node_modules
