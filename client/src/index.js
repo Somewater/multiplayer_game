@@ -1,9 +1,15 @@
 var PIXI = require('pixi.js');
 var $ = require('jquery');
+import EventSocketClient from './eventSocketClient.js'
+import Controller from './controller.js'
+import View from './view.js'
 
 let evens = [];
 var odds = evens.map(v => v + 1);
 var nums = evens.map((v, i) => v + i);
+var eventClient = window.eventClient = new EventSocketClient('localhost', 61618).start();
+var view = window.view = new View();
+var controller = window.controller = new Controller(eventClient, view).start();
 
 class Point {
   constructor(x, y) {
@@ -63,8 +69,8 @@ function showImage(renderer, stage) {
       "/cat.png"
     ])
     .load(function(){
-      var cats = [];
-      for (var i = 0; i < 10000; i++) {
+      var cats = view.cats;
+      for (var i = 0; i < 1; i++) {
         var cat = new PIXI.Sprite(
           PIXI.loader.resources["/cat.png"].texture
         );
@@ -80,14 +86,19 @@ function showImage(renderer, stage) {
         cat.dy = (Math.random() * 10) + 1 | 0;
       }
 
+      let c = cats[0];
+      controller.onInited({x: c.x, y: c.y}, {x: c.dx, y: c.dy}, {x: SIZE, y: SIZE});
+
       setInterval(function(){
-        for (i in cats) {
+        controller.loop();
+
+        /*for (i in cats) {
           var cat = cats[i];
           cat.x += cat.dx;
           if (cat.x < 0 || cat.x > SIZE) cat.dx = -cat.dx;
           cat.y += cat.dy;
           if (cat.y < 0 || cat.y > SIZE) cat.dy = -cat.dy;
-        }
+        }*/
         renderer.render(stage);
       }, 20);
     });
