@@ -1,11 +1,15 @@
+import java.io.File
+import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.NotUsed
 import akka.actor._
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.model.ws._
-import akka.http.scaladsl.model.{HttpResponse, HttpRequest, Uri}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.server.Directives
 import akka.stream.{ActorMaterializer, scaladsl, OverflowStrategy}
 import akka.stream.scaladsl.{Sink, Source, Flow}
 
@@ -60,6 +64,24 @@ object Server {
           case None =>
             HttpResponse(400, entity = "Not a valid websocket request!")
         }
+
+      case req @ HttpRequest(GET, Uri.Path(filepath0), _, _, _) =>
+        val filepath = if (filepath0 == "/") "/index.html" else filepath0
+        val file = new File(System.getProperty("user.dir") + "/client/public" + filepath)
+
+        val contentType =
+          if (filepath.endsWith(".html") || filepath.endsWith(".htm"))
+            ContentTypes.`text/html(UTF-8)`
+          else if (filepath.endsWith(".js"))
+            ContentTypes.`application/json`
+          else
+            ContentTypes.`text/plain(UTF-8)`
+
+        if (file.exists())
+          HttpResponse(entity = HttpEntity.fromPath(contentType, file.toPath))
+        else
+          HttpResponse(StatusCodes.NotFound)
+
       case r: HttpRequest =>
         r.discardEntityBytes() // important to drain incoming HTTP Entity stream
         HttpResponse(404, entity = "Unknown resource!")
