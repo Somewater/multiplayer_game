@@ -2,6 +2,8 @@
 /*/.idea
 /*/target
 /*/project/target
-/client/public/app.js
-/client/public/app.js.map
+/*/project/project
+/client/public/*.js
+/client/public/*.js.map
 /client/node_modules
+/server/client
