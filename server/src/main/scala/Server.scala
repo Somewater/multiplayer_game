@@ -10,9 +10,9 @@ import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.Directives
-import akka.stream.{ActorMaterializer, scaladsl, OverflowStrategy}
-import akka.stream.scaladsl.{Sink, Source, Flow}
-
+import akka.stream.{ActorMaterializer, OverflowStrategy, scaladsl}
+import akka.stream.scaladsl.{Flow, Sink, Source}
+import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.Future
 import scala.io.StdIn
@@ -28,6 +28,7 @@ object Server {
   def main(args: Array[String]) {
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
+    implicit val conf = ConfigFactory.load()
 
     var actorCounter = new AtomicInteger(0)
 
@@ -67,7 +68,7 @@ object Server {
 
       case req @ HttpRequest(GET, Uri.Path(filepath0), _, _, _) =>
         val filepath = if (filepath0 == "/") "/index.html" else filepath0
-        val file = new File(System.getProperty("user.dir") + "/client/public" + filepath)
+        val file = new File(conf.getString("game.client.public.path") + filepath)
 
         val contentType =
           if (filepath.endsWith(".html") || filepath.endsWith(".htm"))
