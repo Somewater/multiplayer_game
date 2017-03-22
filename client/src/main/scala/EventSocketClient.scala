@@ -24,7 +24,7 @@ import scala.scalajs.js.Array
 @JSExport
 class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPong: Boolean = true) {
 
-  type MsgListener = js.Function2[String, String, Unit]
+  type MsgListener = js.Function2[String, String, Any]
   type StateListener = js.Function1[Int, Unit]
 
   private var stateListeners = new js.Array[StateListener]

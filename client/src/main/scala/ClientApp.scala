@@ -31,38 +31,22 @@ object ClientApp extends js.JSApp {
 
   def onImgLoaded(renderer: pixi.SystemRenderer, stage: pixi.Container)
                  (loader: Loader, dict: ResourceDictionary): Unit = {
-    val cats = view.cats
-    for (i <- (0 to 1)) {
-      val catView = new pixi.Sprite(dict("/cat.png").texture.get)
-      val cat = new Cat(catView)
-      stage.addChild(catView)
-      cats.push(cat)
-
-      val scale = Math.random() * 0.5 + 0.5
-      catView.scale.set(scale, scale)
-
-      catView.x = Math.random() * SIZE
-      catView.y = Math.random() * SIZE
-
-      cat.dx = (Math.random() * 10) + 1
-      cat.dy = (Math.random() * 10) + 1
-    }
-
-
-
-    var c = cats(0)
-    controller.onInited(
-      new Point(c.view.x, c.view.y),
-      new Point(c.dx, c.dy),
-      new Point(SIZE, SIZE))
-
+    controller.onInited(new Point(SIZE, SIZE))
     dom.window.setInterval(onTick(renderer, stage) _, 20)
   }
 
   def onTick(renderer: pixi.SystemRenderer, stage: pixi.Container)() = {
+    for (cat <- view.cats) {
+      if (cat.view == null) {
+        cat.view = new pixi.Sprite(Pixi.loader.resources("/cat.png").texture.get)
+        stage.addChild(cat.view)
+      }
+      cat.view.scale.set(cat.size.x * 0.1, cat.size.y * 0.1)
+      cat.view.x = cat.position.x
+      cat.view.y = cat.position.y
+    }
+
     renderer.render(stage)
   }
 }
-
-class Cat(val view: pixi.Sprite, var dx: Double = 0, var dy: Double = 0)
 
