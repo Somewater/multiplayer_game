@@ -6,6 +6,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
 
   def start() = {
     eventClient.on("created", onCreated _)
+    eventClient.on("tick", onTick _)
     eventClient.on("gameSnapshot", onGameSnapshot _)
     eventClient.on("enemyConnected", onEnemyConnected _)
     eventClient.on("enemyDisconnected", onEnemyDisconnected _)
@@ -20,10 +21,18 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onCreated(evType: String, payload: String) = {
-    index = addCreature(payload)
+    val (index, position, speed, size) = deseriaizedData(payload)
+    this.index = index
   }
 
   def onGameSnapshot(evType: String, payload: String) = {
+    payload.split(";").foreach {
+      part =>
+        addCreature(part)
+    }
+  }
+
+  def onTick(evType: String, payload: String) = {
     payload.split(";").foreach {
       part =>
         val arr = part.split(":")

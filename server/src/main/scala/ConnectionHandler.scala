@@ -25,7 +25,7 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
   override def postStop(): Unit = {
     super.postStop()
     pingSchedule.foreach(_.cancel())
-    log.warning("Actor stopped")
+    log.warning("Connection handler stopped")
     onDisconnected()
   }
 

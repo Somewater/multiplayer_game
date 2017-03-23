@@ -48,6 +48,8 @@ class GameController extends Actor with ActorLogging {
     connection.size = new Point(size, size)
     val serializedData = serializeData(connection)
     connection.send("created", serializedData)
+    val gameSnapshot = connections.valuesIterator.map(serializeData).mkString(";")
+    connection.send("gameSnapshot", gameSnapshot)
     connections.valuesIterator.foreach {
       c =>
         if (c != connection)
@@ -80,12 +82,12 @@ class GameController extends Actor with ActorLogging {
           if (pos.y < 0 || pos.y > screenSize.y) speed.y = -speed.y
       }
 
-      val gameSnapshot = connections.valuesIterator.map {
+      val tickData = connections.valuesIterator.map {
           c =>
             s"${c.index}:${c.position.toPayload}"
         }.mkString(";")
 
-      connections.valuesIterator.foreach(_.send("gameSnapshot", gameSnapshot))
+      connections.valuesIterator.foreach(_.send("tick", tickData))
 
     }
   }
