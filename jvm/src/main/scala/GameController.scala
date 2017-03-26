@@ -42,7 +42,7 @@ class GameController extends Actor with ActorLogging {
   }
 
   def onConnect(connection: ConnectionData) = {
-    connection.position = new Point(random.nextInt(screenSize.x), random.nextInt(screenSize.y))
+    connection.position = new Point(random.nextInt(screenSize.x.toInt), random.nextInt(screenSize.y.toInt))
     connection.speed = new Point(random.nextInt(10) + 1, random.nextInt(10) + 1)
     val size = random.nextInt(5) + 5
     connection.size = new Point(size, size)
@@ -94,7 +94,7 @@ class GameController extends Actor with ActorLogging {
 
   private def parsePoint(str: String) = {
     val arr = str.split(",")
-    Some(Point(arr(0).toInt, arr(1).toInt))
+    Some(new Point(arr(0).toDouble, arr(1).toDouble))
   }
 
   private def serializeData(data:ConnectionData): String = {
@@ -105,10 +105,6 @@ class GameController extends Actor with ActorLogging {
 object GameController {
   val LoopInterval = 10 millis
   object LoopTime
-
-  case class Point(var x:Int, var y: Int) {
-    def toPayload = s"$x,$y"
-  }
 
   class ConnectionData(ref: ActorRef, val index: Int) {
     var position: Point = _

@@ -1,9 +1,9 @@
 /*/*.iml
 /*/.idea
 /*/target
+/target
 /*/project/target
 /*/project/project
-/client/public/*.js
-/client/public/*.js.map
-/client/node_modules
-/server/client
+/js/public/*.js
+/js/public/*.js.map
+/shared/.jvm/
