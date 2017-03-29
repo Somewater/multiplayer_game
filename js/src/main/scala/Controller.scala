@@ -25,6 +25,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onCreated(event: Event) = {
+    console.log("onCreated", event.asInstanceOf[js.Any])
     this.index = event.getCreated.getCreature.index
   }
 
@@ -47,6 +48,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onEnemyConnected(event: Event) = {
+    console.log("onEnemyConnected", event.asInstanceOf[js.Any])
     addCreature(event.getEnemyConnected.getCreature)
   }
 
