@@ -43,16 +43,12 @@ object Server {
         }.to(Sink.actorRef[TextMessage](actor, PoisonPill))
 
       val outgoingMessages: Source[Message, NotUsed] =
-        Source.actorRef[TextMessage](10, OverflowStrategy.fail)
+        Source.actorRef[Message](10, OverflowStrategy.fail)
           .mapMaterializedValue { outActor =>
             // give the user actor a way to send messages out
             actor ! Connected(outActor)
             NotUsed
-          }.map(
-          // transform domain message to web socket message
-          (msg: TextMessage) =>
-            msg
-        )
+          }
       // then combine both to a flow
       Flow.fromSinkAndSource(incomingMessages, outgoingMessages)
     }

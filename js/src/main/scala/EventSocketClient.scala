@@ -1,10 +1,18 @@
+import java.io.InputStream
+import java.nio.ByteBuffer
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import org.scalajs.dom
 import org.scalajs.dom.WebSocket
+import org.scalajs.dom.raw.Blob
+import proto.game_events.Event
 
 import scala.collection.mutable
 import scala.scalajs.js.Array
+import scala.scalajs.js.typedarray.{ArrayBuffer, Uint8Array}
+import scala.scalajs.js.typedarray.TypedArrayBufferOps._
+import scala.scalajs.js.JSConverters._
 
 /**
   * Socket client interface with events dispatching
@@ -24,16 +32,15 @@ import scala.scalajs.js.Array
 @JSExport
 class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPong: Boolean = true) {
 
-  type MsgListener = js.Function2[String, String, Any]
-  type StateListener = js.Function1[Int, Unit]
+  val binary = new EventDispatcher[Event.Type, Event]
+  val text = new EventDispatcher[String, String]
+  val state = new EventDispatcher[Unit, Int]
+  private val textSender = new BufferedSender[(String, String)]()(sendText _)
+  private val binarySender = new BufferedSender[Event]()(sendBinary _)
 
-  private var stateListeners = new js.Array[StateListener]
-  private var messageListeners = mutable.Map.empty[String, js.Array[MsgListener]]
-  private var eventsQueue = new js.Array[js.Array[String]]
   private var socket: WebSocket = null
 
-  if (pingPong) on("ping", pingHandler _)
-
+  if (pingPong) text.on("ping", pingHandler _)
 
   def start(): Unit = {
     if (status == WebSocket.OPEN) {
@@ -54,14 +61,12 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPo
     }
 
     socket = new dom.WebSocket(s"ws://${this.host}:${this.port}/ws")
-    dispatchStatus()
-    socket.onopen = (ev: dom.Event) => {
-      dispatchStatus()
-      processOutgointEvents()
-    }
-    socket.onclose = (ev: dom.Event) => dispatchStatus()
+    socket.binaryType = "arraybuffer"
+    state.dispatch((), status)
+    socket.onopen = onOpen _
+    socket.onclose = onClose _
     socket.onmessage = onMessage _
-    socket.onerror = (ev: dom.Event) => if (verbose) dom.console.error(ev)
+    socket.onerror = onError _
   }
 
   def reconnect() = {
@@ -73,71 +78,73 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPo
   def status: Int =
     if (socket == null) WebSocket.CLOSED else socket.readyState
 
-  def on(eventType: String, listener: MsgListener) = {
-    messageListeners.getOrElseUpdate(eventType, new js.Array[MsgListener]()).push(listener)
+  def send(event: Event) = {
+    binarySender.send(event)
   }
 
   def send(evType: String, msg: String) = {
-    if (status == WebSocket.OPEN) {
-      _send(evType, msg)
-    } else {
-      eventsQueue.push(js.Array(evType, msg))
-    }
+    textSender.send(evType -> msg)
   }
 
-  def addStateListener(listener: StateListener) = stateListeners.push(listener)
+  private def onOpen(ev: dom.Event) = {
+    state.dispatch((), status)
+    binarySender.open()
+    textSender.open()
+  }
+
+  private def onClose(ev: dom.Event) = {
+    state.dispatch((), status)
+    binarySender.close()
+    textSender.close()
+  }
+
+  private def onError(ev: dom.Event) = {
+    if (verbose) dom.console.error(ev)
+  }
 
   private def onMessage(event: dom.MessageEvent) = {
-    val data = if (event.data == null) "" else event.data.toString
-    val idx = data.indexOf(":")
-    if (idx == -1 || idx == 0) {
-      if (verbose)
-        dom.console.error(event)
+    if (event.data.isInstanceOf[ArrayBuffer]) {
+      val view = new Uint8Array(event.data.asInstanceOf[ArrayBuffer])
+      val len = view.length
+      val array = new scala.Array[Byte](len)
+      var i = 0
+      while (i < len) {
+        array(i) = view.get(i).asInstanceOf[Byte]
+        i += 1
+      }
+      val binaryEvent = Event.parseFrom(array)
+      binary.dispatch(binaryEvent.`type`, binaryEvent)
+    } else if (event.data.isInstanceOf[Blob]) {
+      dom.console.error("Can't handle blob websocket message")
     } else {
-      val evType = data.substring(0, idx)
-      val payload = data.substring(idx + 1)
-      if (verbose)
-        dom.console.log(s"[WS] ${evType}:${payload}")
-      dispatch(evType, payload)
+      val data = if (event.data == null) "" else event.data.toString
+      val idx = data.indexOf(":")
+      if (idx == -1 || idx == 0) {
+        if (verbose)
+          dom.console.error(event)
+      } else {
+        val evType = data.substring(0, idx)
+        val payload = data.substring(idx + 1)
+        if (verbose)
+          dom.console.log(s"[WS] ${evType}:${payload}")
+        text.dispatch(evType, payload)
+      }
     }
   }
 
-  private def dispatchStatus() = {
-    val status = this.status
-    if (verbose)
-      dom.console.log(s"WS status: ${status}")
-    stateListeners.foreach(cb => cb(status))
+  private def sendBinary(event: Event) = {
+    val array = event.toByteString.toByteArray.toJSArray
+    val view = new Uint8Array(array)
+    socket.send(view.buffer)
   }
 
-  private def _send(evType: String, msg: String) = {
-    val str = s"${evType}:${msg}"
-    if (verbose)
-      dom.console.log(s"[SEND] $str")
-    socket.send(str)
+  private def sendText(pair: (String, String)) = {
+    socket.send(s"${pair._1}:${pair._2}")
   }
 
-  private def dispatch(evType: String, msg: String) = {
-    messageListeners.get(evType) match {
-      case Some(listeners) =>
-        listeners.foreach(cb => cb(evType, msg))
-      case None =>
-    }
-  }
-
-  private def pingHandler(evType: String, msg: String): Unit = {
+  private def pingHandler(msg: String): Unit = {
     val now = System.currentTimeMillis()
     dom.console.log(s"Ping duration ${now - msg.toLong}")
     send("pong", msg)
   }
-
-  private def processOutgointEvents() = {
-    if (eventsQueue.length > 0) {
-      eventsQueue.foreach(
-        ev =>
-          _send(ev(0), ev(1))
-      )
-      eventsQueue = new js.Array()
-    }
-  }
-
 }

@@ -10,6 +10,14 @@ lazy val cross = crossProject.in(file(".")).
     name := "Multiplayer game",
     version := "0.1-SNAPSHOT",
     resolvers += "Artifactory" at "https://oss.jfrog.org/artifactory/oss-snapshot-local/",
+    PB.targets in Compile := Seq(
+      scalapb.gen() -> (sourceManaged in Compile).value
+    ),
+    PB.protoSources in Compile := Seq(file("shared/src/main/protobuf")),
+    libraryDependencies ++= Seq(
+      "com.trueaccord.scalapb" %%% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion,
+      "com.trueaccord.scalapb" %%% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion % "protobuf"
+    ),
     libraryDependencies += "org.scala-js" %% "scalajs-stubs" % scalaJSVersion % "provided"
   ).
   jvmSettings(

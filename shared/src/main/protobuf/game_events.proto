@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package proto;
+
+message Point {
+    int32 x = 1;
+    int32 y = 2;
+}
+
+message Creature {
+    string index = 1;
+    Point position = 2;
+    Point speed = 3;
+    Point size = 4;
+}
+
+message Event {
+    enum Type {
+        CREATED = 0;
+        TICK = 1;
+        GAME_SNAPSHOT = 2;
+        ENEMY_CONNECTED = 3;
+        ENEMY_DISCONNECTED = 4;
+    }
+
+    Type type = 1;
+
+    oneof value {
+        Created created = 2;
+        Tick tick = 3;
+        GameSnapshot gameSnapshot = 4;
+        EnemyConnected enemyConnected = 5;
+        EnemyDisonnected enemyDisconnected = 6;
+    }
+}
+
+message Created {
+    Creature creature = 1;
+}
+
+message Tick {
+    message CreaturePosition {
+        string index = 1;
+        Point position = 2;
+    }
+
+    repeated CreaturePosition creatures = 1;
+}
+
+message GameSnapshot {
+    repeated Creature creatures = 1;
+}
+
+message EnemyConnected {
+    Creature creature = 1;
+}
+
+message EnemyDisonnected {
+    Creature creature = 1;
+}

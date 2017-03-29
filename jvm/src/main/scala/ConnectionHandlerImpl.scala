@@ -1,6 +1,7 @@
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.ws.TextMessage
 import ConnectionHandlerImpl._
+import proto.game_events.Event
 
 /**
   * Integration with game controller
@@ -17,13 +18,13 @@ class ConnectionHandlerImpl(controller: ActorRef, index: Int) extends Connection
     controller ! Disconnected(index)
   }
 
-  override def onEvent(outgoing: ActorRef, eventType: String, payload: String): Unit = {
-    controller ! IngoingMessage(eventType, payload, index)
+  override def onEvent(outgoing: ActorRef, event: Event): Unit = {
+    controller ! IngoingMessage(event, index)
   }
 
   override def onMessage: Receive = {
-    case OutgountMessage(eventType, payload) =>
-      send(eventType, payload)
+    case OutgountMessage(event) =>
+      send(event)
   }
 }
 
@@ -32,7 +33,7 @@ object ConnectionHandlerImpl {
     val index: Int
   }
   case class Connected(handler: ActorRef, val index: Int) extends WsEvent
-  case class IngoingMessage(eventType: String, payload: String, val index: Int) extends WsEvent
-  case class OutgountMessage(eventType: String, payload: String)
+  case class IngoingMessage(event: Event, val index: Int) extends WsEvent
+  case class OutgountMessage(event: Event)
   case class Disconnected(val index: Int) extends WsEvent
 }

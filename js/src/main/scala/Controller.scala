@@ -1,15 +1,17 @@
-import scala.scalajs.js
+import proto.game_events.{Creature, Event}
+
+import ImplicitUtils._
 
 class Controller(eventClient: EventSocketClient, view: View) {
   var index: String = _
   val tmpPoint = new Point(0, 0)
 
   def start() = {
-    eventClient.on("created", onCreated _)
-    eventClient.on("tick", onTick _)
-    eventClient.on("gameSnapshot", onGameSnapshot _)
-    eventClient.on("enemyConnected", onEnemyConnected _)
-    eventClient.on("enemyDisconnected", onEnemyDisconnected _)
+    eventClient.binary.on(Event.Type.CREATED, onCreated _)
+    eventClient.binary.on(Event.Type.TICK, onTick _)
+    eventClient.binary.on(Event.Type.GAME_SNAPSHOT, onGameSnapshot _)
+    eventClient.binary.on(Event.Type.ENEMY_CONNECTED, onEnemyConnected _)
+    eventClient.binary.on(Event.Type.ENEMY_DISCONNECTED, onEnemyDisconnected _)
   }
 
   def onInited(screenSize: Point): Unit = {
@@ -20,24 +22,19 @@ class Controller(eventClient: EventSocketClient, view: View) {
 
   }
 
-  def onCreated(evType: String, payload: String) = {
-    val (index, position, speed, size) = deseriaizedData(payload)
-    this.index = index
+  def onCreated(event: Event) = {
+    this.index = event.getCreated.getCreature.index
   }
 
-  def onGameSnapshot(evType: String, payload: String) = {
-    payload.split(";").foreach {
-      part =>
-        addCreature(part)
-    }
+  def onGameSnapshot(event: Event) = {
+    event.getGameSnapshot.creatures.foreach(addCreature)
   }
 
-  def onTick(evType: String, payload: String) = {
-    payload.split(";").foreach {
-      part =>
-        val arr = part.split(":")
-        val index = arr(0)
-        var position = Point.fromPayload(arr(1), tmpPoint)
+  def onTick(event: Event) = {
+    event.getTick.creatures.foreach {
+      creaturePos =>
+        val index = creaturePos.index
+        val position = creaturePos.getPosition
         view.catsByIndex.get(index) match {
           case Some(cat) =>
             cat.position.copyFrom(position)
@@ -46,12 +43,12 @@ class Controller(eventClient: EventSocketClient, view: View) {
     }
   }
 
-  def onEnemyConnected(evType: String, payload: String) = {
-    addCreature(payload)
+  def onEnemyConnected(event: Event) = {
+    addCreature(event.getEnemyConnected.getCreature)
   }
 
-  def onEnemyDisconnected(evType: String, payload: String) = {
-    val (index, _, _, _) = deseriaizedData(payload)
+  def onEnemyDisconnected(event: Event) = {
+    val index = event.getEnemyDisconnected.getCreature.index
     view.cats.find(_.index == index) match {
       case Some(disconnected) =>
         view.removeCat(disconnected)
@@ -59,17 +56,12 @@ class Controller(eventClient: EventSocketClient, view: View) {
     }
   }
 
-  private def addCreature(payload: String): String = {
-    val (index, position, speed, size) = deseriaizedData(payload)
+  private def addCreature(creature: Creature): String = {
+    val index = creature.index
+    val position: Point = creature.getPosition
+    val speed: Point = creature.getSpeed
+    val size: Point = creature.getSize
     view.addCat(new Cat(view = null, index = index, position = position, speed = speed, size = size))
     index
-  }
-
-  private def deseriaizedData(payload: String): (String, Point, Point, Point) = {
-    val parts = payload.split(":")
-    (parts(0),
-      Point.fromPayload(parts(1)),
-      Point.fromPayload(parts(2)),
-      Point.fromPayload(parts(3)))
   }
 }

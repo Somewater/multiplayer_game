@@ -1,6 +1,10 @@
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable}
-import akka.http.scaladsl.model.ws.TextMessage
+import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage}
+import akka.util.ByteString
+import proto.game_events.Event
+
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 /**
   * Help handle connection
@@ -12,13 +16,13 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
 
   var pingSchedule: Option[Cancellable] = None
   var outgoing: Option[ActorRef] = None
-  val outgoingEvents = collection.mutable.ArrayBuffer.empty[(String, String)]
+  val outgoingEvents = collection.mutable.ArrayBuffer.empty[Event]
 
   def onConnected(outgoing: ActorRef): Unit
 
   def onDisconnected(): Unit
 
-  def onEvent(outgoing: ActorRef, eventType: String, payload: String)
+  def onEvent(outgoing: ActorRef, event: Event)
 
   def onMessage: Receive
 
@@ -41,10 +45,18 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
   }
 
   def connected(outgoing: ActorRef): Receive = {
+    case BinaryMessage.Strict(bytes) =>
+      Try { Event.parseFrom(bytes.toArray) } match {
+        case Success(event) =>
+          onEvent(outgoing, event)
+        case Failure(ex) =>
+          log.error(ex, s"Wrong binary message")
+      }
+
     case TextMessage.Strict(text) =>
       val idx = text.indexOf(":")
       if (idx == -1 || idx == 0) {
-        log.error(s"Wrong message = ${text}")
+        log.error(s"Wrong text message = ${text}")
       } else {
         val eventType = text.substring(0, idx)
         val payload = text.substring(idx + 1)
@@ -53,7 +65,7 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
             val duration = System.currentTimeMillis() - payload.toLong
             log.info(s"Ping response during ${duration} ms")
           case _ =>
-            onEvent(outgoing, eventType, payload)
+            log.error(s"Unhandled text message = ${text}")
         }
       }
 
@@ -67,19 +79,19 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
       onMessage(msg)
   }
 
-  protected def send(eventType: String, payload: String) = {
+  protected def send(event: Event) = {
     outgoing match {
       case Some(conn) =>
-        conn ! TextMessage(s"${eventType}:${payload}")
+        conn ! BinaryMessage(ByteString(event.toByteArray))
       case None =>
-        outgoingEvents.append()
+        outgoingEvents.append(event)
     }
   }
 
   protected def processOutgoingEvents(): Unit = {
     val conn = outgoing.get
-    for ((eventType, payload) <- outgoingEvents.iterator) {
-      conn ! TextMessage(s"${eventType}:${payload}")
+    for (event <- outgoingEvents.iterator) {
+      conn ! BinaryMessage(ByteString(event.toByteArray))
     }
     outgoingEvents.clear()
   }

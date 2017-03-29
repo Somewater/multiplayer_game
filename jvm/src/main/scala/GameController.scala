@@ -1,5 +1,8 @@
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import GameController._
+import proto.game_events
+import proto.game_events.Tick.CreaturePosition
+import proto.game_events._
 
 import concurrent.duration._
 import scala.util.Random
@@ -13,6 +16,8 @@ class GameController extends Actor with ActorLogging {
   val connections = collection.mutable.HashMap.empty[Int, ConnectionData]
   val random = new Random(123)
 
+  implicit def option[V](v: V): Option[V] = Some(v)
+
   override def preStart(): Unit = {
     context.system.scheduler.schedule(LoopInterval, LoopInterval, self, LoopTime)
   }
@@ -22,12 +27,12 @@ class GameController extends Actor with ActorLogging {
       val data = new ConnectionData(handler, index)
       connections.put(index, data)
       onConnect(data)
-    case ConnectionHandlerImpl.IngoingMessage(eventType, payload, index) =>
+    case ConnectionHandlerImpl.IngoingMessage(event, index) =>
       connections.get(index) match {
         case Some(data) =>
-          onEvent(data, eventType, payload)
+          onEvent(data, event)
         case None =>
-          log.error("Event from undefined index = {}, eventType = {}, payload = {}", index, eventType, payload)
+          log.error("Event from undefined index = {}, eventType = {}", index, event.`type`.name)
       }
 
     case ConnectionHandlerImpl.Disconnected(index) =>
@@ -47,17 +52,20 @@ class GameController extends Actor with ActorLogging {
     val size = random.nextInt(5) + 5
     connection.size = new Point(size, size)
     val serializedData = serializeData(connection)
-    connection.send("created", serializedData)
+    connection.send(Event(`type` = Event.Type.CREATED,
+      value = Event.Value.Created(Created(creature = toCreature(connection)))))
     val gameSnapshot = connections.valuesIterator.map(serializeData).mkString(";")
-    connection.send("gameSnapshot", gameSnapshot)
+    connection.send(Event(`type` = Event.Type.GAME_SNAPSHOT,
+      value = Event.Value.GameSnapshot(GameSnapshot(creatures = connections.valuesIterator.map(toCreature).toSeq))))
     connections.valuesIterator.foreach {
       c =>
         if (c != connection)
-          c.send("enemyConnected", serializedData)
+          connection.send(Event(`type` = Event.Type.ENEMY_CONNECTED,
+            value = Event.Value.EnemyConnected(EnemyConnected(creature = toCreature(connection)))))
     }
   }
 
-  def onEvent(connection: ConnectionData, eventType: String, payload: String) = {
+  def onEvent(connection: ConnectionData, event: Event) = {
 
   }
 
@@ -65,7 +73,8 @@ class GameController extends Actor with ActorLogging {
     val serializedData = serializeData(connection)
     connections.valuesIterator.foreach {
       c =>
-        c.send("enemyDisconnected", serializedData)
+        connection.send(Event(`type` = Event.Type.ENEMY_DISCONNECTED,
+          value = Event.Value.EnemyDisconnected(EnemyDisonnected(creature = toCreature(connection)))))
     }
   }
 
@@ -87,7 +96,8 @@ class GameController extends Actor with ActorLogging {
             s"${c.index}:${c.position.toPayload}"
         }.mkString(";")
 
-      connections.valuesIterator.foreach(_.send("tick", tickData))
+      connections.valuesIterator.foreach(_.send(Event(`type` = Event.Type.TICK,
+        value = Event.Value.Tick(Tick(creatures = connections.valuesIterator.map(toCreaturePosition).toSeq)))))
 
     }
   }
@@ -100,6 +110,20 @@ class GameController extends Actor with ActorLogging {
   private def serializeData(data:ConnectionData): String = {
     s"${data.index}:${data.position.toPayload}:${data.speed.toPayload}:${data.size.toPayload}"
   }
+
+  private def toCreature(connection: ConnectionData): Creature = {
+    Creature(
+      index = connection.index.toString,
+      position = toPoint(connection.position),
+      speed = toPoint(connection.speed),
+      size = toPoint(connection.size))
+  }
+
+  private def toCreaturePosition(connection: ConnectionData): CreaturePosition = {
+    CreaturePosition(index = connection.index.toString, position = toPoint(connection.position))
+  }
+
+  implicit private def toPoint(p: Point) = game_events.Point(p.x.toInt, p.y.toInt)
 }
 
 object GameController {
@@ -111,8 +135,8 @@ object GameController {
     var speed: Point = _
     var size: Point = _
 
-    def send(eventType: String, payload: String)(implicit sender: ActorRef = Actor.noSender) = {
-      ref ! ConnectionHandlerImpl.OutgountMessage(eventType, payload)
+    def send(event: Event)(implicit sender: ActorRef = Actor.noSender) = {
+      ref ! ConnectionHandlerImpl.OutgountMessage(event)
     }
   }
 }

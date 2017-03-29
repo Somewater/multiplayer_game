@@ -11,18 +11,3 @@ class Point(var x: Double, var y: Double) {
     s"${x.toInt},${y.toInt}"
   }
 }
-
-object Point {
-  def fromPayload(payload: String, to: Point = null): Point = {
-    val arr = payload.split(",")
-    val x = arr(0).toInt
-    val y = arr(1).toInt
-    if (to == null) {
-      new Point(x, y)
-    } else {
-      to.x = x
-      to.y = y
-      to
-    }
-  }
-}
