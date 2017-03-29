@@ -30,7 +30,7 @@ import scala.scalajs.js.JSConverters._
   * </pre>
   */
 @JSExport
-class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPong: Boolean = true) {
+class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingPong: Boolean = true) {
 
   val binary = new EventDispatcher[Event.Type, Event]
   val text = new EventDispatcher[String, String]
@@ -144,7 +144,7 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = true, pingPo
 
   private def pingHandler(msg: String): Unit = {
     val now = System.currentTimeMillis()
-    dom.console.log(s"Ping duration ${now - msg.toLong}")
+    if (verbose) dom.console.log(s"Ping duration ${now - msg.toLong}")
     send("pong", msg)
   }
 }

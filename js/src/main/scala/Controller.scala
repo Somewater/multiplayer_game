@@ -51,6 +51,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onEnemyDisconnected(event: Event) = {
+    console.log("onEnemyDisconnected", event.asInstanceOf[js.Any])
     val index = event.getEnemyDisconnected.getCreature.index
     view.cats.find(_.index == index) match {
       case Some(disconnected) =>

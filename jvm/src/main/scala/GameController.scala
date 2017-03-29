@@ -71,8 +71,7 @@ class GameController extends Actor with ActorLogging {
   def onDisconnect(connection: ConnectionData) = {
     val serializedData = serializeData(connection)
     connections.valuesIterator.foreach {
-      c =>
-        connection.send(Event(`type` = Event.Type.ENEMY_DISCONNECTED,
+      _.send(Event(`type` = Event.Type.ENEMY_DISCONNECTED,
           value = Event.Value.EnemyDisconnected(EnemyDisonnected(creature = toCreature(connection)))))
     }
   }
@@ -89,11 +88,6 @@ class GameController extends Actor with ActorLogging {
           pos.y += speed.y
           if (pos.y < 0 || pos.y > screenSize.y) speed.y = -speed.y
       }
-
-      val tickData = connections.valuesIterator.map {
-          c =>
-            s"${c.index}:${c.position.toPayload}"
-        }.mkString(";")
 
       connections.valuesIterator.foreach(_.send(Event(`type` = Event.Type.TICK,
         value = Event.Value.Tick(Tick(creatures = connections.valuesIterator.map(toCreaturePosition).toSeq)))))

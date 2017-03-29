@@ -63,7 +63,7 @@ abstract class ConnectionHandler extends Actor with ActorLogging {
         eventType match {
           case "pong" =>
             val duration = System.currentTimeMillis() - payload.toLong
-            log.info(s"Ping response during ${duration} ms")
+            log.debug(s"Ping response during ${duration} ms")
           case _ =>
             log.error(s"Unhandled text message = ${text}")
         }
