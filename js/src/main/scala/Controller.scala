@@ -1,6 +1,8 @@
 import proto.game_events.{Creature, Event}
-
+import org.scalajs.dom.console
 import ImplicitUtils._
+
+import scala.scalajs.js
 
 class Controller(eventClient: EventSocketClient, view: View) {
   var index: String = _
@@ -27,6 +29,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onGameSnapshot(event: Event) = {
+    console.log("onGameSnapshot", event.asInstanceOf[js.Any])
     event.getGameSnapshot.creatures.foreach(addCreature)
   }
 

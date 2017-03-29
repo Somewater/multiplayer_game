@@ -54,13 +54,12 @@ class GameController extends Actor with ActorLogging {
     val serializedData = serializeData(connection)
     connection.send(Event(`type` = Event.Type.CREATED,
       value = Event.Value.Created(Created(creature = toCreature(connection)))))
-    val gameSnapshot = connections.valuesIterator.map(serializeData).mkString(";")
     connection.send(Event(`type` = Event.Type.GAME_SNAPSHOT,
       value = Event.Value.GameSnapshot(GameSnapshot(creatures = connections.valuesIterator.map(toCreature).toSeq))))
     connections.valuesIterator.foreach {
       c =>
         if (c != connection)
-          connection.send(Event(`type` = Event.Type.ENEMY_CONNECTED,
+          c.send(Event(`type` = Event.Type.ENEMY_CONNECTED,
             value = Event.Value.EnemyConnected(EnemyConnected(creature = toCreature(connection)))))
     }
   }
