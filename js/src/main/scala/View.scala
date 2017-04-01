@@ -17,4 +17,8 @@ class View() {
     if (cat.view != null)
       cat.view.parent.removeChild(cat.view)
   }
+
+  def removeAllCats() = {
+    cats.slice(0, cats.length).foreach(removeCat)
+  }
 }

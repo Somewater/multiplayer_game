@@ -30,6 +30,7 @@ class Controller(eventClient: EventSocketClient, view: View) {
   }
 
   def onGameSnapshot(event: Event) = {
+    view.removeAllCats()
     console.log("onGameSnapshot", event.asInstanceOf[js.Any])
     event.getGameSnapshot.creatures.foreach(addCreature)
   }
