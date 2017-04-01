@@ -10,13 +10,13 @@ import scala.scalajs.js.annotation.JSExport // Type-safe load events
 
 object ClientApp extends js.JSApp {
 
-  val eventClient = new EventSocketClient("localhost", 61618)
+  val eventClient = new EventSocketClient("localhost", 61618) with Reconnect
   val view = new View()
   val controller = new Controller(eventClient, view)
   val SIZE = 300
 
   def main(): Unit = {
-    eventClient.start()
+    eventClient.startWithReconnect()
     controller.start()
     jQuery(dom.document).ready(onReady _)
   }

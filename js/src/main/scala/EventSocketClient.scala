@@ -1,18 +1,14 @@
-import java.io.InputStream
-import java.nio.ByteBuffer
-
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import org.scalajs.dom
+import org.scalajs.dom.console
 import org.scalajs.dom.WebSocket
 import org.scalajs.dom.raw.Blob
 import proto.game_events.Event
 
-import scala.collection.mutable
-import scala.scalajs.js.Array
 import scala.scalajs.js.typedarray.{ArrayBuffer, Uint8Array}
-import scala.scalajs.js.typedarray.TypedArrayBufferOps._
 import scala.scalajs.js.JSConverters._
+import scala.util.{Failure, Success, Try}
 
 /**
   * Socket client interface with events dispatching
@@ -38,20 +34,20 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingP
   private val textSender = new BufferedSender[(String, String)]()(sendText _)
   private val binarySender = new BufferedSender[Event]()(sendBinary _)
 
-  private var socket: WebSocket = null
+  protected var socket: WebSocket = null
 
   if (pingPong) text.on("ping", pingHandler _)
 
   def start(): Unit = {
     if (status == WebSocket.OPEN) {
       if (verbose)
-        dom.console.error("Already connected")
+        console.error("Already connected")
       return
     }
 
     if (status == WebSocket.CONNECTING) {
       if (verbose)
-        dom.console.error("Already connecting...")
+        console.error("Already connecting...")
       return
     }
 
@@ -78,11 +74,11 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingP
   def status: Int =
     if (socket == null) WebSocket.CLOSED else socket.readyState
 
-  def send(event: Event) = {
+  def send(event: Event): Boolean = {
     binarySender.send(event)
   }
 
-  def send(evType: String, msg: String) = {
+  def send(evType: String, msg: String): Boolean = {
     textSender.send(evType -> msg)
   }
 
@@ -99,7 +95,7 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingP
   }
 
   private def onError(ev: dom.Event) = {
-    if (verbose) dom.console.error(ev)
+    if (verbose) console.error(ev)
   }
 
   private def onMessage(event: dom.MessageEvent) = {
@@ -115,18 +111,18 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingP
       val binaryEvent = Event.parseFrom(array)
       binary.dispatch(binaryEvent.`type`, binaryEvent)
     } else if (event.data.isInstanceOf[Blob]) {
-      dom.console.error("Can't handle blob websocket message")
+      console.error("Can't handle blob websocket message")
     } else {
       val data = if (event.data == null) "" else event.data.toString
       val idx = data.indexOf(":")
       if (idx == -1 || idx == 0) {
         if (verbose)
-          dom.console.error(event)
+          console.error(event)
       } else {
         val evType = data.substring(0, idx)
         val payload = data.substring(idx + 1)
         if (verbose)
-          dom.console.log(s"[WS] ${evType}:${payload}")
+          console.log(s"[WS] ${evType}:${payload}")
         text.dispatch(evType, payload)
       }
     }
@@ -144,7 +140,77 @@ class EventSocketClient(host: String, port: Int, verbose: Boolean = false, pingP
 
   private def pingHandler(msg: String): Unit = {
     val now = System.currentTimeMillis()
-    if (verbose) dom.console.log(s"Ping duration ${now - msg.toLong}")
+    if (verbose) console.log(s"Ping duration ${now - msg.toLong}")
     send("pong", msg)
   }
+}
+
+trait Reconnect { this: EventSocketClient =>
+  private var running = false
+  private var reconnectAttempts = 0
+  private var maxReconnectAttempts = 100
+  private var onFatalError: (String => Any) = printToConsole _
+  private var reconnectIntervalMs = 0
+  private var reconnectMultiplier = 1.0D
+
+  def startWithReconnect(maxReconnectAttempts: Int = Int.MaxValue,
+                         reconnectIntervalMs: Int = 0,
+                         reconnectMultiplier: Double = 1.0D,
+                         onFatalError: String => Any = printToConsole _): Unit = {
+    this.maxReconnectAttempts = maxReconnectAttempts
+    this.onFatalError = onFatalError
+    this.reconnectIntervalMs = reconnectIntervalMs
+    this.reconnectMultiplier = reconnectMultiplier
+    running = true
+    state.on((), onStateChanged _)
+    tryToStart()
+  }
+
+  def stop(): Unit = {
+    running = false
+    this.socket.close()
+  }
+
+  private def onStateChanged(state: Int) = {
+    if (running) {
+      state match {
+        case WebSocket.CONNECTING =>
+        case WebSocket.OPEN =>
+          reconnectAttempts = 0
+        case WebSocket.CLOSING =>
+        case WebSocket.CLOSED =>
+          tryToReconnect()
+        case another =>
+          console.error(s"Undefined WebSocket state = ${state}")
+      }
+    }
+  }
+
+  private def tryToReconnect(forceTimeout: Option[Int] = None): Unit = {
+    if (reconnectAttempts < maxReconnectAttempts) {
+      reconnectAttempts += 1
+      val interval = forceTimeout.map(t => math.max(reconnectIntervalMs, t)).getOrElse(reconnectIntervalMs)
+      reconnectIntervalMs = (reconnectIntervalMs * reconnectMultiplier).toInt
+      if (interval == 0) {
+        tryToStart()
+      } else {
+        val timeout = scala.scalajs.js.timers.setTimeout(interval) {
+          tryToStart()
+        }
+      }
+    } else {
+      onFatalError("Reconnection limit exceeded, WebSocket connection failed")
+    }
+  }
+
+  private def tryToStart() = {
+    Try(start()) match {
+      case Failure(ex) =>
+        console.error("WebSocket connection error", ex.asInstanceOf[js.Any])
+        tryToReconnect(forceTimeout = Some(1000))
+      case Success(_) =>
+    }
+  }
+
+  private def printToConsole(msg: String): Unit = console.log(msg)
 }

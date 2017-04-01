@@ -7,11 +7,13 @@ class BufferedSender[Payload](initialOpen: Boolean = false)(realSend: Payload =>
   private var isOpen: Boolean = initialOpen
   private var queue = new js.Array[Payload]
 
-  def send(payload: Payload) = {
+  def send(payload: Payload): Boolean = {
     if (isOpen) {
       realSend(payload)
+      true
     } else {
       queue.push(payload)
+      false
     }
   }
 
